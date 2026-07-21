@@ -21,6 +21,14 @@ Talks directly to a Broadlink RM over your LAN using the same local protocol Hom
 - **Local only** — no account, no internet dependency, ~10–30ms instead of a cloud round-trip.
 - **Test button** — fire the code from the settings panel before you ever touch the physical key.
 
+## Two actions
+
+**Send Command** — one key, one code. Tap it, the code goes out.
+
+**Toggle On/Off** — one key, two codes, alternating. For anything whose remote has separate on and off buttons: instead of burning two keys on one lamp, this holds both codes and sends whichever one is not the last one it sent. The key artwork shows which state it thinks the device is in — dark when off, lit when on.
+
+The state only flips once a send actually lands, so a failed press does not leave the key claiming a state the device never reached. The key cannot read the device, though — IR and RF are one-way — so if someone uses the original remote the two can drift apart. The settings panel has a flip control to line them back up.
+
 ## Requirements
 
 - A Broadlink RM device (RM4 Mini, RM4 Pro, RM3, RM Pro…) already on your Wi-Fi
@@ -31,11 +39,13 @@ Talks directly to a Broadlink RM over your LAN using the same local protocol Hom
 
 ## Setup
 
-1. Add a **Send Command** action to a key.
+1. Add a **Send Command** action to a key (or **Toggle On/Off** for a two-code key).
 2. Hit **Scan**. Pick your device from the list.
 3. Give the button a name (it shows on the key).
 4. Press **Learn IR**, point the remote at the RM, press the button on the remote.
 5. Press **Test** to confirm. Done.
+
+On a Toggle key the two slots are learned separately — **On** and **Off** each have their own Learn and Test.
 
 ### If Scan finds nothing
 
