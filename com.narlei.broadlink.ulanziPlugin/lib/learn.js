@@ -1,4 +1,5 @@
 import { sleep } from './pool.js';
+import { log, describeError } from './logger.js';
 
 const POLL_INTERVAL_MS = 800;
 const IR_TIMEOUT_MS = 30000;
@@ -12,21 +13,30 @@ const toHex = (buf) => Buffer.from(buf).toString('hex');
 // yet" apart from a genuine fault by the code alone, so we treat every failure
 // as "keep waiting" and let the deadline be the thing that gives up.
 async function pollForCode(pool, host, deadline) {
+  let attempt = 0;
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
+    attempt++;
     try {
       const data = await pool.run(host, (d) => d.checkData(), { retry: false });
-      if (data && data.length) return toHex(data);
-    } catch {
-      /* not captured yet */
+      if (data && data.length) {
+        log(`  poll#${attempt} checkData -> CAPTURED ${data.length} bytes`);
+        return toHex(data);
+      }
+      log(`  poll#${attempt} checkData -> empty response (${data?.length ?? 'null'} bytes)`);
+    } catch (err) {
+      log(`  poll#${attempt} checkData -> ${describeError(err)}`);
     }
   }
+  log(`  polling gave up after ${attempt} attempts`);
   return null;
 }
 
 /** Puts the RM in IR learning mode and waits for a button press on the remote. */
 export async function learnIr(pool, host, onProgress = () => {}) {
+  log(`IR learn: enterLearning on ${host}`);
   await pool.run(host, (d) => d.enterLearning());
+  log('IR learn: device in learning mode, polling for a code');
   onProgress('Point your remote at the Broadlink and press the button.');
 
   const code = await pollForCode(pool, host, Date.now() + IR_TIMEOUT_MS);
@@ -56,6 +66,7 @@ function rawSend(device, command, data = []) {
 
 async function sweepStatus(device) {
   const resp = await rawSend(device, 0x1a);
+  log(`  0x1a -> ${Buffer.from(resp).toString('hex')}`);
   // The frequency rides along as a little-endian uint32 right after the flag.
   // We hand the raw value straight back to the device later instead of
   // converting to MHz and back, so nothing is lost to rounding.
@@ -95,6 +106,7 @@ export async function startRfSweep(pool, host, onProgress = () => {}) {
       }
       return d.sweepFrequency();
     });
+    log(`RF sweep: started on ${host}`);
     onProgress('Scanning frequencies — press and HOLD the remote button.');
 
     const sweepDeadline = Date.now() + RF_SWEEP_TIMEOUT_MS;
@@ -102,9 +114,12 @@ export async function startRfSweep(pool, host, onProgress = () => {}) {
       await sleep(POLL_INTERVAL_MS);
       try {
         const status = await pool.run(host, (d) => sweepStatus(d), { retry: false });
-        if (status.found) return status;
-      } catch {
-        /* still sweeping */
+        if (status.found) {
+          log(`RF sweep: locked on ${status.mhz} MHz (raw ${status.raw})`);
+          return status;
+        }
+      } catch (err) {
+        log(`  0x1a -> ${describeError(err)}`);
       }
     }
     throw new Error('No RF frequency found. Hold the button down and keep the remote close.');
@@ -117,7 +132,9 @@ export async function startRfSweep(pool, host, onProgress = () => {}) {
 /** Stage two: capture one packet, now that the button has actually been let go. */
 export async function captureRfPacket(pool, host, frequencyRaw, onProgress = () => {}) {
   try {
+    log(`RF capture: 0x1b on ${host} with frequency ${frequencyRaw} (${frequencyRaw / 1000} MHz)`);
     await pool.run(host, (d) => listenOnFrequency(d, frequencyRaw));
+    log('RF capture: 0x1b accepted, polling for a packet');
     onProgress('Listening — now TAP the same button, a few times if needed.');
 
     const code = await pollForCode(pool, host, Date.now() + RF_PACKET_TIMEOUT_MS);

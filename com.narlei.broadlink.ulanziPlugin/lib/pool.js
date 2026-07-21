@@ -1,4 +1,5 @@
 import { helloUnicast, describe } from './net.js';
+import { log, describeError } from './logger.js';
 
 const CALL_TIMEOUT_MS = 6000;
 const HELLO_TIMEOUT_MS = 4000;
@@ -87,8 +88,10 @@ export default class DevicePool {
     const entry = this.#entry(host);
     try {
       if (!entry.device) {
+        log(`pool: opening a new session with ${host}`);
         entry.device = await this.#connect(host);
         entry.info = describe(entry.device);
+        log(`pool: session established with ${entry.info.model} at ${host}`);
       }
       return await withTimeout(Promise.resolve(fn(entry.device)), CALL_TIMEOUT_MS, `command to ${host}`);
     } catch (err) {
@@ -100,6 +103,7 @@ export default class DevicePool {
       const code = errorCode(err);
       if (code !== null && !SESSION_DEAD.has(code)) throw err;
 
+      log(`pool: dropping session with ${host} — ${describeError(err)}`);
       this.forget(host);
       // A Broadlink RM rotates its session key when it reboots, so the first
       // call after a power blip always fails with a stale key. One silent

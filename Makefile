@@ -37,6 +37,10 @@ install:
 	@rsync -a --delete --exclude=".DS_Store" --exclude="*.log" "$(PLUGIN_ID)/" "$(INSTALL_DIR)/"
 	@$(MAKE) restart
 
+# Killing the app alone is not enough. Plugins run as child node processes and
+# they survive the parent being killed — the orphan keeps its socket, the
+# restarted Studio reattaches to it, and you spend an afternoon testing code
+# that was replaced on disk half an hour ago. Kill the plugin processes too.
 restart:
 	@echo "→ Restarting $(APP_NAME)..."
 	@killall "$(APP_PROC)" 2>/dev/null || true
@@ -45,8 +49,20 @@ restart:
 		sleep 1; \
 	done
 	@pkill -x "$(APP_PROC)" 2>/dev/null || true
+	@echo "→ Killing orphaned plugin processes..."
+	@pkill -f "UlanziDeck/Plugins" 2>/dev/null || true
 	@sleep 1
 	@open -a "$(APP_NAME)" || echo "⚠️ Could not open $(APP_NAME). Please start it manually."
+	@echo "→ Waiting for the plugin to come back up..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+		sleep 1; \
+		PID=$$(pgrep -f "$(PLUGIN_ID)/app.js" | head -1); \
+		if [ -n "$$PID" ]; then \
+			echo "✅ plugin running as pid $$PID (started $$(ps -o lstart= -p $$PID))"; \
+			exit 0; \
+		fi; \
+	done; \
+	echo "⚠️ Plugin process did not appear — open $(APP_NAME) and check."
 
 clean:
 	@rm -rf $(DIST_DIR)

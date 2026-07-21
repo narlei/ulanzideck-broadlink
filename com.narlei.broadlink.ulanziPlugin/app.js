@@ -2,6 +2,9 @@ import UlanziApi from './plugin-common-node/index.js';
 import DevicePool from './lib/pool.js';
 import { discoverAll, helloUnicast, describe } from './lib/net.js';
 import { learnIr, startRfSweep, captureRfPacket, cancelRfSweep, sendCode } from './lib/learn.js';
+import { log, describeError, LOG_PATH } from './lib/logger.js';
+import { statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const PLUGIN_UUID = 'com.narlei.broadlink.plugin';
 
@@ -41,9 +44,15 @@ function parkPendingRf(host, frequency) {
   };
 }
 
-function log(...args) {
-  console.log('[broadlink]', ...args);
-}
+// Identifies the running build by the mtime of this very file, so the log says
+// which code is actually executing without needing a build step.
+const BUILD_STAMP = (() => {
+  try {
+    return statSync(fileURLToPath(import.meta.url)).mtime.toISOString();
+  } catch {
+    return 'unknown';
+  }
+})();
 
 function renderInstance(inst) {
   if (!inst.active) return;
@@ -64,9 +73,17 @@ function ensureInstance(context, settings) {
   return inst;
 }
 
+// Stamped at startup so a log file can be matched against the build that
+// produced it — a stale plugin process silently serving old code is otherwise
+// indistinguishable from a fix that did not work.
+log('='.repeat(60));
+log(`plugin starting — pid ${process.pid}, node ${process.version}`);
+log(`build ${BUILD_STAMP}`);
+log(`log file: ${LOG_PATH || '(disabled)'}`);
+
 $UD.connect(PLUGIN_UUID);
 
-$UD.onConnected(() => log('connected'));
+$UD.onConnected(() => log('connected to Ulanzi Studio'));
 
 $UD.onAdd((msg) => ensureInstance(msg.context, msg.param || {}));
 $UD.onParamFromApp((msg) => ensureInstance(msg.context, msg.param || {}));
@@ -122,7 +139,11 @@ $UD.onRun(async (msg) => {
 
 $UD.onSendToPlugin(async (msg) => {
   const payload = msg.payload || {};
-  const reply = (data) => $UD.sendToPropertyInspector(data, msg.context);
+  log(`PI -> plugin: ${payload.type || '(no type)'}${payload.mode ? ' mode=' + payload.mode : ''}${payload.host ? ' host=' + payload.host : ''}`);
+  const reply = (data) => {
+    log(`plugin -> PI: ${data.type}${data.ok === false ? ' FAILED: ' + data.error : ''}`);
+    $UD.sendToPropertyInspector(data, msg.context);
+  };
 
   switch (payload.type) {
     case 'discover': {
