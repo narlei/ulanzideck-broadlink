@@ -9,6 +9,28 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // never arms a timer, so a device that is unplugged mid-session leaves the
 // promise pending forever. In a plugin process that lives for days that is a
 // permanent leak and a button that stops responding with no error to show.
+// The device reports failures as signed codes, which node-broadlink surfaces
+// unsigned and stringified — `new Error("65535")` for -1. A message that is
+// nothing but digits therefore means the datagram made the round trip and the
+// device replied with a status; anything else (our timeout text, discovery
+// messages, socket errors) is a transport problem.
+const errorCode = (err) => {
+  const raw = String(err?.message ?? '').trim();
+  if (!/^\d+$/.test(raw)) return null;
+  const value = Number(raw);
+  return value > 0x7fff ? value - 0x10000 : value;
+};
+
+// Codes that mean this session is finished and only a fresh auth will help.
+// Everything else the device says — storage, read failures, the errors that
+// learning produces on every poll while it waits — leaves the session valid.
+const SESSION_DEAD = new Set([
+  -1, // authentication failed
+  -2, // you have been logged out
+  -7, // control key is expired
+  -4012, // device control ID error
+]);
+
 function withTimeout(promise, ms, label) {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -70,6 +92,14 @@ export default class DevicePool {
       }
       return await withTimeout(Promise.resolve(fn(entry.device)), CALL_TIMEOUT_MS, `command to ${host}`);
     } catch (err) {
+      // A device that answers with an error code is a healthy device saying
+      // no. Learning leans on this constantly — "nothing captured yet" arrives
+      // as an error on every poll — and tearing the session down for those
+      // would reconnect once a second and reset the capture the device was
+      // just told to start, so nothing is ever learned.
+      const code = errorCode(err);
+      if (code !== null && !SESSION_DEAD.has(code)) throw err;
+
       this.forget(host);
       // A Broadlink RM rotates its session key when it reboots, so the first
       // call after a power blip always fails with a stale key. One silent
