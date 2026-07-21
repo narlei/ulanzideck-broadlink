@@ -3,11 +3,18 @@
  * Drops dependencies that nothing actually imports.
  *
  * @aksel/structjs — the only real dependency of node-broadlink — declares
- * `npm-name` in its package.json, which drags in `got`, `registry-auth-token`
- * and 40-odd others. Its entire source is one 3.5KB file that never imports
+ * `npm-name` in its package.json, which drags in `ky`, `registry-auth-token`
+ * and 20-odd others. Its entire source is one 3.5KB file that never imports
  * npm-name; the entry is simply a mistake upstream. Shipping it would put an
  * HTTP client and an npmrc token reader inside every user's plugin folder for
  * no reason at all.
+ *
+ * package.json also overrides npm-name to ^8.1.0. That is a separate concern:
+ * pruning keeps the shipped ZIP clean, but the lockfile is what security
+ * scanners read, and npm-name@5 resolved url-regex 5.0.0 (CVE-2020-7661) with
+ * no fixed release available. npm-name@8 reaches is-url-superb 6, which uses
+ * the native URL API instead. Both mechanisms are still needed — the override
+ * makes the lockfile honest, this script keeps the payload small.
  *
  * Rather than hardcode a delete list, this walks the real dependency graph
  * from package.json and removes whatever is unreachable. The guard below means
