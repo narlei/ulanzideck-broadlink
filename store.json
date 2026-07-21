@@ -1,0 +1,16 @@
+{
+  "cover": "resources/cover.png",
+  "screenshots": [
+    "resources/cover.png",
+    "resources/banner1.png",
+    "resources/banner2.png"
+  ],
+  "longDescription": "Turn any Deck key into a remote control. Broadlink IR/RF talks straight to a Broadlink RM on your local network — no Broadlink account, no cloud round-trip, no vendor lock-in. Hit Scan to find your devices, or type the IP directly if your smart home lives on a separate IoT or guest network. Then press Learn, point your original remote at the RM, and the code is captured and stored with that button. IR works on every RM model; RF (433/315MHz) works on the Pro line, with a guided two-step capture that tells you exactly when to hold the button and when to tap it. Test the code right from the settings panel before you ever touch the physical key. Lights, air conditioners, fans, projectors, blinds, garage doors — anything that answers a remote.",
+  "deviceTypes": [
+    "deck"
+  ],
+  "tags": [
+    "smart-home",
+    "tools"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "Name": "Broadlink IR/RF",
+  "Version": "1.0.0",
+  "Author": "Narlei Moreira",
+  "Description": "Fire any IR or RF command from your Deck through a Broadlink RM. Learn codes straight from your original remote — no cloud, no account.",
+  "Icon": "resources/icon.svg",
+  "Category": "Broadlink IR/RF",
+  "CategoryIcon": "resources/icon.svg",
+  "URL": "https://github.com/narlei/ulanzideck-broadlink",
+  "CodePath": "app.js",
+  "Type": "JavaScript",
+  "PrivateAPI": true,
+  "SupportedInMultiActions": false,
+  "UUID": "com.narlei.broadlink.plugin",
+  "Actions": [
+    {
+      "Name": "Send Command",
+      "Tooltip": "Sends a learned IR or RF code through your Broadlink RM.",
+      "Icon": "resources/icon.svg",
+      "PropertyInspectorPath": "property-inspector/inspector.html",
+      "UUID": "com.narlei.broadlink.plugin.send",
+      "States": [
+        {
+          "Image": "resources/icon.svg"
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "Controllers": [
+        "Keypad"
+      ]
+    }
+  ],
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.15"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinVersion": "1.0.0"
+  }
+}

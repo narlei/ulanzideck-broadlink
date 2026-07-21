@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui,viewport-fit=cover" />
+  <title>Broadlink IR/RF</title>
+  <link rel="stylesheet" href="../libs/css/uspi.css">
+  <style>
+    .bl-section { padding: 0 10px; margin-bottom: 12px; }
+    .bl-label { font-size: 11px; opacity: 0.7; margin-bottom: 4px; }
+    .bl-row { display: flex; gap: 6px; align-items: center; }
+    .bl-row > select, .bl-row > input { flex: 1; min-width: 0; }
+
+    input[type="text"], select {
+      width: 100%;
+      box-sizing: border-box;
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: inherit;
+      font-size: 12px;
+    }
+
+    button { width: auto; padding: 0 12px; height: 28px; font-size: 12px; white-space: nowrap; }
+    .bl-actions { display: flex; gap: 6px; margin: 0 10px 10px; }
+    .bl-actions button { flex: 1; }
+
+    .bl-status {
+      margin: 0 10px 12px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+    .bl-status.show { display: block; }
+    .bl-status.ok   { background: rgba(45,212,191,0.12); border: 1px solid rgba(45,212,191,0.4); }
+    .bl-status.fail { background: rgba(242,85,85,0.12);  border: 1px solid rgba(242,85,85,0.4); }
+    .bl-status.busy { background: rgba(139,92,246,0.14); border: 1px solid rgba(139,92,246,0.45); }
+
+    .bl-code {
+      margin: 0 10px 12px;
+      padding: 7px 9px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .bl-code .kind {
+      font-family: inherit;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(45,212,191,0.2);
+      flex-shrink: 0;
+    }
+    .bl-code .hex { opacity: 0.65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bl-code.empty .kind { background: rgba(255,255,255,0.12); }
+
+    .bl-hint { padding: 0 12px 10px; font-size: 11px; opacity: 0.6; line-height: 1.5; }
+    .bl-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 0 10px 12px; }
+  </style>
+</head>
+<body>
+  <div class="udpi-wrapper hidden uspi-wrapper">
+    <form id="property-inspector">
+
+      <div class="bl-section">
+        <div class="bl-label">Broadlink device</div>
+        <div class="bl-row">
+          <select id="deviceSelect">
+            <option value="">No device selected</option>
+          </select>
+          <button type="button" id="scanBtn">Scan</button>
+        </div>
+      </div>
+
+      <div class="bl-section">
+        <div class="bl-label">…or enter the IP directly</div>
+        <div class="bl-row">
+          <input type="text" id="manualHost" placeholder="192.168.1.50" spellcheck="false" autocomplete="off">
+          <button type="button" id="probeBtn">Check</button>
+        </div>
+      </div>
+
+      <div class="bl-divider"></div>
+
+      <div class="bl-section">
+        <div class="bl-label">Button name (shown on the key)</div>
+        <input type="text" id="label" placeholder="Bedroom light" spellcheck="false" autocomplete="off">
+      </div>
+
+      <div class="bl-code empty" id="codeBox">
+        <span class="kind" id="codeKind">empty</span>
+        <span class="hex" id="codeHex">no code learned yet</span>
+      </div>
+
+      <div class="bl-actions">
+        <button type="button" id="learnIrBtn">Learn IR</button>
+        <button type="button" id="learnRfBtn">Learn RF</button>
+        <button type="button" id="testBtn">Test</button>
+      </div>
+
+      <div class="bl-status" id="status"></div>
+
+      <div class="bl-hint" id="hint">
+        Everything runs on your local network — no Broadlink account, no cloud.
+        Codes are learned from your original remote and stored with this button.
+      </div>
+
+    </form>
+  </div>
+
+  <script src="../libs/js/constants.js"></script>
+  <script src="../libs/js/eventEmitter.js"></script>
+  <script src="../libs/js/timers.js"></script>
+  <script src="../libs/js/utils.js"></script>
+  <script src="../libs/js/ulanziApi.js"></script>
+  <script src="./inspector.js"></script>
+</body>
+</html>
