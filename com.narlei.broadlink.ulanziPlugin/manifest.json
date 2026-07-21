@@ -24,7 +24,26 @@
           "Image": "resources/icon.svg"
         }
       ],
-      "SupportedInMultiActions": true,
+      "SupportedInMultiActions": false,
+      "Controllers": [
+        "Keypad"
+      ]
+    },
+    {
+      "Name": "Toggle On/Off",
+      "Tooltip": "One key that alternates between two learned codes.",
+      "Icon": "resources/toggle-on.svg",
+      "PropertyInspectorPath": "property-inspector/toggle.html",
+      "UUID": "com.narlei.broadlink.plugin.toggle",
+      "States": [
+        {
+          "Image": "resources/toggle-off.svg"
+        },
+        {
+          "Image": "resources/toggle-on.svg"
+        }
+      ],
+      "SupportedInMultiActions": false,
       "Controllers": [
         "Keypad"
       ]

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2E1A0F"/>
+      <stop offset="1" stop-color="#100804"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.54" cy="0.28" r="0.82">
+      <stop offset="0" stop-color="#FF9A4D" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#FF9A4D" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="case" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F6ECE2"/>
+      <stop offset="0.55" stop-color="#DCCBBA"/>
+      <stop offset="1" stop-color="#B79E89"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#FFD2A6"/>
+      <stop offset="1" stop-color="#FF7A2F"/>
+    </linearGradient>
+    <radialGradient id="power" cx="0.5" cy="0.36" r="0.64">
+      <stop offset="0" stop-color="#FFF0DC"/>
+      <stop offset="0.42" stop-color="#FF9C4A"/>
+      <stop offset="1" stop-color="#E2530C"/>
+    </radialGradient>
+    <radialGradient id="tipGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.28" stop-color="#FFA855" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#FFA855" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="200" height="200" rx="44" fill="url(#bg)"/>
+  <rect width="200" height="200" rx="44" fill="url(#glow)"/>
+
+  <!-- ambient embers -->
+  <circle cx="40" cy="50" r="2.3" fill="#FFC38F" fill-opacity="0.38"/>
+  <circle cx="28" cy="70" r="1.5" fill="#FFC38F" fill-opacity="0.24"/>
+  <circle cx="162" cy="160" r="2" fill="#FFC38F" fill-opacity="0.3"/>
+
+  <!-- Handset and beam share one group so the arcs stay aimed along the
+       handset however it is tilted. -->
+  <g transform="rotate(18 100 105)">
+
+    <!-- a narrow directional fan, deliberately not the concentric rings of a
+         wireless glyph — this is a beam leaving an emitter -->
+    <g fill="none" stroke="url(#beam)" stroke-linecap="round">
+      <path d="M77.7 44.2 A20 20 0 0 1 102.3 44.2" stroke-width="9"/>
+      <path d="M70.3 36.8 A32 32 0 0 1 109.7 36.8" stroke-width="8" opacity="0.58"/>
+      <path d="M63.5 20.1 A43 43 0 0 1 116.5 20.1" stroke-width="7" opacity="0.26"/>
+    </g>
+
+    <!-- emitter window -->
+    <circle cx="90" cy="62" r="20" fill="url(#tipGlow)"/>
+
+    <!-- handset: light body against the dark field so the silhouette survives
+         all the way down to a 28px list row -->
+    <rect x="56" y="64" width="68" height="104" rx="19" fill="url(#case)" stroke="#170B04" stroke-width="4"/>
+    <rect x="76" y="56" width="28" height="14" rx="7" fill="#8E2C05" stroke="#170B04" stroke-width="4"/>
+    <rect x="80.5" y="59.5" width="19" height="7" rx="3.5" fill="#FFB067"/>
+
+    <!-- power key -->
+    <circle cx="90" cy="94" r="13" fill="url(#power)" stroke="#170B04" stroke-width="3.5"/>
+    <path d="M90 87.5 v7.5" stroke="#5A1E04" stroke-width="3.4" stroke-linecap="round"/>
+
+    <!-- keypad -->
+    <g fill="#6E5744">
+      <rect x="66" y="119" width="21" height="9" rx="4.5"/>
+      <rect x="93" y="119" width="21" height="9" rx="4.5" fill-opacity="0.55"/>
+      <rect x="66" y="136" width="21" height="9" rx="4.5" fill-opacity="0.55"/>
+      <rect x="93" y="136" width="21" height="9" rx="4.5"/>
+      <rect x="66" y="153" width="21" height="9" rx="4.5" fill-opacity="0.4"/>
+      <rect x="93" y="153" width="21" height="9" rx="4.5" fill-opacity="0.4"/>
+    </g>
+  </g>
+</svg>

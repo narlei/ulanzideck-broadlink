@@ -7,6 +7,7 @@ import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const PLUGIN_UUID = 'com.narlei.broadlink.plugin';
+const TOGGLE_UUID = 'com.narlei.broadlink.plugin.toggle';
 
 const $UD = new UlanziApi();
 const pool = new DevicePool();
@@ -54,20 +55,40 @@ const BUILD_STAMP = (() => {
   }
 })();
 
-function renderInstance(inst) {
-  if (!inst.active) return;
-  const { host, code, label } = inst.settings || {};
-  const ready = !!host && !!code;
-  $UD.setPathIcon(inst.context, 'resources/icon.svg', ready ? label || '' : 'setup');
+// The action a context belongs to. Messages carry `uuid`, but a context that
+// was restored before we ever saw an add event would have none, so the shape of
+// the settings stands in for it.
+function isToggle(inst) {
+  if (inst.uuid) return inst.uuid === TOGGLE_UUID;
+  const s = inst.settings || {};
+  return 'codeOn' in s || 'codeOff' in s;
 }
 
-function ensureInstance(context, settings) {
+function renderInstance(inst) {
+  if (!inst.active) return;
+  const s = inst.settings || {};
+
+  if (isToggle(inst)) {
+    const ready = !!s.host && !!s.codeOn && !!s.codeOff;
+    // `on` is what the key last sent, so the artwork shows the state the device
+    // should currently be in — not the one the next press will move it to.
+    const icon = s.on ? 'resources/toggle-on.svg' : 'resources/toggle-off.svg';
+    $UD.setPathIcon(inst.context, icon, ready ? s.label || '' : 'setup');
+    return;
+  }
+
+  const ready = !!s.host && !!s.code;
+  $UD.setPathIcon(inst.context, 'resources/icon.svg', ready ? s.label || '' : 'setup');
+}
+
+function ensureInstance(context, settings, uuid) {
   let inst = INSTANCES.get(context);
   if (!inst) {
-    inst = { context, settings: settings || {}, active: true };
+    inst = { context, settings: settings || {}, active: true, uuid: uuid || null };
     INSTANCES.set(context, inst);
-  } else if (settings) {
-    inst.settings = settings;
+  } else {
+    if (settings) inst.settings = settings;
+    if (uuid) inst.uuid = uuid;
   }
   renderInstance(inst);
   return inst;
@@ -85,14 +106,17 @@ $UD.connect(PLUGIN_UUID);
 
 $UD.onConnected(() => log('connected to Ulanzi Studio'));
 
-$UD.onAdd((msg) => ensureInstance(msg.context, msg.param || {}));
-$UD.onParamFromApp((msg) => ensureInstance(msg.context, msg.param || {}));
-$UD.onParamFromPlugin((msg) => ensureInstance(msg.context, msg.param || {}));
+$UD.onAdd((msg) => {
+  log(`add: uuid=${msg.uuid || '(none)'} key=${msg.key || '?'}`);
+  ensureInstance(msg.context, msg.param || {}, msg.uuid);
+});
+$UD.onParamFromApp((msg) => ensureInstance(msg.context, msg.param || {}, msg.uuid));
+$UD.onParamFromPlugin((msg) => ensureInstance(msg.context, msg.param || {}, msg.uuid));
 
 // Edits made in the Property Inspector arrive here; without this the running
 // instance never sees the code that was just learned.
 $UD.onDidReceiveSettings((msg) => {
-  ensureInstance(msg.context, msg.settings || msg.param || {});
+  ensureInstance(msg.context, msg.settings || msg.param || {}, msg.uuid);
 });
 
 $UD.onSetActive((msg) => {
@@ -108,23 +132,40 @@ $UD.onClear((msg) => {
 });
 
 $UD.onRun(async (msg) => {
-  const inst = INSTANCES.get(msg.context) || ensureInstance(msg.context, msg.param || {});
-  const { host, code, label } = inst.settings || {};
+  const inst = INSTANCES.get(msg.context) || ensureInstance(msg.context, msg.param || {}, msg.uuid);
+  const s = inst.settings || {};
+  const toggle = isToggle(inst);
 
-  if (!host) {
+  if (!s.host) {
     $UD.toast('Pick a Broadlink device in the button settings first');
     $UD.showAlert(msg.context);
     return;
   }
+
+  // A toggle alternates: whatever it sent last time, send the other one now.
+  const code = toggle ? (s.on ? s.codeOff : s.codeOn) : s.code;
   if (!code) {
-    $UD.toast('Learn a code in the button settings first');
+    $UD.toast(
+      toggle
+        ? `Learn the ${s.on ? 'OFF' : 'ON'} code in the button settings first`
+        : 'Learn a code in the button settings first'
+    );
     $UD.showAlert(msg.context);
     return;
   }
 
   try {
-    await sendCode(pool, host, code);
-    log('sent', label || code.slice(0, 12), '->', host);
+    await sendCode(pool, s.host, code);
+    if (toggle) {
+      // Only flip once the send actually landed, so a failed press does not
+      // leave the key claiming a state the device never reached.
+      inst.settings = { ...s, on: !s.on };
+      $UD.sendParamFromPlugin(inst.settings, msg.context);
+      renderInstance(inst);
+      log(`toggled ${s.label || 'button'} -> ${inst.settings.on ? 'ON' : 'OFF'} via ${s.host}`);
+    } else {
+      log('sent', s.label || code.slice(0, 12), '->', s.host);
+    }
   } catch (err) {
     const reason = err?.message || 'unknown error';
     log('send failed:', reason);
