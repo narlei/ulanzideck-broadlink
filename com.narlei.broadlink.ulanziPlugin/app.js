@@ -68,17 +68,20 @@ function renderInstance(inst) {
   if (!inst.active) return;
   const s = inst.settings || {};
 
+  // Address the artwork by state index rather than by file path: index 0/1 is
+  // what the key's own state picker in Ulanzi Studio edits, so a custom image
+  // dropped there survives. Pushing a path would overwrite it on every render.
   if (isToggle(inst)) {
     const ready = !!s.host && !!s.codeOn && !!s.codeOff;
     // `on` is what the key last sent, so the artwork shows the state the device
     // should currently be in — not the one the next press will move it to.
-    const icon = s.on ? 'resources/toggle-on.svg' : 'resources/toggle-off.svg';
-    $UD.setPathIcon(inst.context, icon, ready ? s.label || '' : 'setup');
+    // Matches the States order in manifest.json: 0 = off, 1 = on.
+    $UD.setStateIcon(inst.context, s.on ? 1 : 0, ready ? s.label || '' : 'setup');
     return;
   }
 
   const ready = !!s.host && !!s.code;
-  $UD.setPathIcon(inst.context, 'resources/icon.svg', ready ? s.label || '' : 'setup');
+  $UD.setStateIcon(inst.context, 0, ready ? s.label || '' : 'setup');
 }
 
 function ensureInstance(context, settings, uuid) {
