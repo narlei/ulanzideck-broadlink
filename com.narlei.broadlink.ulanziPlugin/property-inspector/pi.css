@@ -1,0 +1,176 @@
+/* Shared Property Inspector styling. Loaded after uspi.css so these win.
+   Everything here is either a fix for something the SDK stylesheet leaves
+   broken, or interaction feedback it never defines. */
+
+/* --- dropdown --------------------------------------------------------------
+   Replaces the native <select>, whose popup macOS draws itself: it picks up the
+   white text colour uspi.css puts on the document but not a background to go
+   with it, leaving white on white. See pi-select.js. */
+.pisel {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.pisel-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100% !important;
+  height: 28px;
+  padding: 0 10px !important;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--uspi-textcolor);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pisel-trigger:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.pisel.open .pisel-trigger {
+  border-color: rgba(0, 255, 230, 0.55);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pisel-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pisel-label.placeholder {
+  opacity: 0.45;
+}
+
+.pisel-caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(255, 255, 255, 0.6);
+  transition: transform 0.14s ease;
+}
+
+.pisel.open .pisel-caret {
+  transform: rotate(180deg);
+}
+
+.pisel-list {
+  display: none;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 7px;
+  background: #23252a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+}
+
+.pisel.open .pisel-list {
+  display: block;
+}
+
+.pisel-option {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #e9eef5;
+  cursor: pointer;
+}
+
+.pisel-option:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.pisel-option.selected {
+  background: rgba(0, 255, 230, 0.16);
+  color: #7bffef;
+}
+
+.pisel-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pisel-option-note {
+  flex: none;
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+/* --- press feedback --------------------------------------------------------
+   uspi.css styles buttons but defines no :hover, :active or :disabled, so a
+   click produces no acknowledgement at all and there is no way to tell a
+   working button from a dead one. */
+button {
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+    transform 0.06s ease, opacity 0.12s ease;
+  user-select: none;
+}
+
+button:hover:not(:disabled) {
+  background-color: rgba(0, 255, 230, 0.14);
+}
+
+button:active:not(:disabled) {
+  background-color: rgba(0, 255, 230, 0.3);
+  transform: translateY(1px) scale(0.98);
+}
+
+button:focus-visible {
+  box-shadow: 0 0 0 2px rgba(0, 255, 230, 0.4);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* The button that kicked off the current operation keeps pulsing while it runs,
+   so "did my click register?" is answered by the control itself rather than
+   only by a line of status text further down the panel. */
+button.working:disabled {
+  opacity: 1;
+  border-color: var(--uspi-theme);
+  color: var(--uspi-theme);
+  animation: pi-pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes pi-pulse {
+  0%, 100% { background-color: rgba(0, 255, 230, 0.08); }
+  50%      { background-color: rgba(0, 255, 230, 0.28); }
+}
+
+/* --- inputs --------------------------------------------------------------- */
+input[type='text'] {
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+input[type='text']:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+input[type='text']:focus {
+  border-color: rgba(0, 255, 230, 0.55) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+}

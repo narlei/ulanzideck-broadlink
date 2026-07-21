@@ -4,7 +4,14 @@ let loaded = false;
 // didReceiveSettings, so a save mid-typing doesn't clobber the caret.
 let lastSentLabel = null;
 
-const deviceSelect = document.getElementById('deviceSelect');
+const deviceSelect = new PiSelect(document.getElementById('deviceSelect'), {
+  placeholder: 'No device selected',
+  onChange: () => {
+    clearStatus();
+    updateRfAvailability();
+    save();
+  },
+});
 const scanBtn = document.getElementById('scanBtn');
 const manualHost = document.getElementById('manualHost');
 const probeBtn = document.getElementById('probeBtn');
@@ -52,34 +59,14 @@ function renderCode() {
 }
 
 function renderDevices() {
-  const selected = settings.host || '';
-  deviceSelect.innerHTML = '';
-
-  if (!knownDevices.size) {
-    const opt = document.createElement('option');
-    opt.value = selected;
-    opt.textContent = selected ? `${settings.deviceName || 'Saved device'} — ${selected}` : 'No device selected';
-    deviceSelect.appendChild(opt);
-    deviceSelect.value = selected;
-    updateRfAvailability();
-    return;
-  }
-
-  for (const [host, info] of knownDevices) {
-    const opt = document.createElement('option');
-    opt.value = host;
-    const name = info.name || info.model;
-    opt.textContent = `${name} — ${host}${info.rf ? '' : ' (IR only)'}`;
-    deviceSelect.appendChild(opt);
-  }
-
-  if (selected && !knownDevices.has(selected)) {
-    const opt = document.createElement('option');
-    opt.value = selected;
-    opt.textContent = `${settings.deviceName || 'Saved device'} — ${selected}`;
-    deviceSelect.appendChild(opt);
-  }
-  deviceSelect.value = selected;
+  deviceSelect.value = settings.host || '';
+  deviceSelect.setOptions(
+    [...knownDevices].map(([host, info]) => ({
+      value: host,
+      label: `${info.name || info.model} — ${host}`,
+      note: info.rf ? '' : 'IR only',
+    }))
+  );
   updateRfAvailability();
 }
 
@@ -108,15 +95,19 @@ function save() {
 
 const debouncedSave = Utils.debounce(save, 600);
 
-function busy(on) {
+// `trigger` is the button the user actually pressed. It stays lit and pulsing
+// while everything else greys out, so the panel answers "did my click land?"
+// at the control itself instead of only in the status line below.
+function busy(on, trigger = null) {
   [scanBtn, probeBtn, learnIrBtn, learnRfBtn, testBtn].forEach((b) => {
     b.disabled = on;
+    b.classList.toggle('working', on && b === trigger);
   });
   if (!on) updateRfAvailability();
 }
 
 function scan() {
-  busy(true);
+  busy(true, scanBtn);
   setStatus('busy', 'Looking for Broadlink devices on your network…');
   $UD.sendToPlugin({ type: 'discover' });
 }
@@ -127,7 +118,7 @@ function probe() {
     setStatus('fail', 'Type an IP address first.');
     return;
   }
-  busy(true);
+  busy(true, probeBtn);
   setStatus('busy', `Checking ${host}…`);
   $UD.sendToPlugin({ type: 'probe', host });
 }
@@ -138,7 +129,7 @@ function learn(mode) {
     setStatus('fail', 'Pick a device first — Scan, or enter its IP.');
     return;
   }
-  busy(true);
+  busy(true, mode === 'rf' ? learnRfBtn : learnIrBtn);
   setStatus('busy', mode === 'rf' ? 'Starting RF scan…' : 'Putting the device in learning mode…');
   $UD.sendToPlugin({ type: 'learn', mode, host });
 }
@@ -153,7 +144,7 @@ function test() {
     setStatus('fail', 'Learn a code first.');
     return;
   }
-  busy(true);
+  busy(true, testBtn);
   setStatus('busy', 'Sending…');
   $UD.sendToPlugin({ type: 'test', host, code: settings.code });
 }
@@ -311,11 +302,6 @@ probeBtn.addEventListener('click', probe);
 learnIrBtn.addEventListener('click', () => learn('ir'));
 learnRfBtn.addEventListener('click', () => learn('rf'));
 testBtn.addEventListener('click', test);
-deviceSelect.addEventListener('change', () => {
-  clearStatus();
-  updateRfAvailability();
-  save();
-});
 labelEl.addEventListener('input', debouncedSave);
 labelEl.addEventListener('change', save);
 manualHost.addEventListener('keydown', (e) => {
