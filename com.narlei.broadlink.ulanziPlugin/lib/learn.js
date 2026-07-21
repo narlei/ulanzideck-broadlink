@@ -36,6 +36,39 @@ export async function learnIr(pool, host, onProgress = () => {}) {
   throw new Error('No IR signal captured. Get closer to the device and try again.');
 }
 
+// node-broadlink's checkFrequency() throws away the frequency the sweep found
+// (it returns just a boolean) and its findRfPacket() sends command 0x1b with an
+// empty payload. python-broadlink, which it was ported from, carries the value
+// across: check_frequency returns (found, frequency) and find_rf_packet packs
+// it back in. Without it the device is told to listen but never told where, so
+// stage two waits forever. These two helpers speak 0x1a/0x1b directly.
+//
+// `send` is marked protected in the library's TypeScript, which is a
+// compile-time annotation only — at runtime it is an ordinary prototype method.
+// The guard below turns a future refactor upstream into a clear error rather
+// than a mystery hang.
+function rawSend(device, command, data = []) {
+  if (typeof device.send !== 'function') {
+    throw new Error('This node-broadlink build does not expose the raw command channel.');
+  }
+  return device.send(command, data);
+}
+
+async function sweepStatus(device) {
+  const resp = await rawSend(device, 0x1a);
+  // The frequency rides along as a little-endian uint32 right after the flag.
+  // We hand the raw value straight back to the device later instead of
+  // converting to MHz and back, so nothing is lost to rounding.
+  const raw = resp && resp.length >= 5 ? resp.readUInt32LE(1) : 0;
+  return { found: !!(resp && resp[0]), raw, mhz: raw / 1000 };
+}
+
+function listenOnFrequency(device, raw) {
+  const payload = Buffer.alloc(4);
+  payload.writeUInt32LE(raw >>> 0, 0);
+  return rawSend(device, 0x1b, [...payload]);
+}
+
 /**
  * RF learning is a two-stage handshake and the stages need opposite gestures
  * from the user: first a long hold so the RM can sweep the band and lock the
@@ -59,12 +92,13 @@ export async function learnRf(pool, host, onProgress = () => {}) {
     onProgress('Scanning frequencies — press and HOLD the remote button.');
 
     const sweepDeadline = Date.now() + RF_SWEEP_TIMEOUT_MS;
-    let locked = false;
+    let locked = null;
     while (Date.now() < sweepDeadline) {
       await sleep(POLL_INTERVAL_MS);
       try {
-        if (await pool.run(host, (d) => d.checkFrequency(), { retry: false })) {
-          locked = true;
+        const status = await pool.run(host, (d) => sweepStatus(d), { retry: false });
+        if (status.found) {
+          locked = status;
           break;
         }
       } catch {
@@ -73,9 +107,13 @@ export async function learnRf(pool, host, onProgress = () => {}) {
     }
     if (!locked) throw new Error('No RF frequency found. Hold the button down and keep the remote close.');
 
-    onProgress('Frequency locked. Now release, then TAP the same button.');
+    onProgress(
+      locked.mhz
+        ? `Locked on ${locked.mhz.toFixed(2)} MHz. Release, then TAP the same button.`
+        : 'Frequency locked. Release, then TAP the same button.'
+    );
     await sleep(1000);
-    await pool.run(host, (d) => d.findRfPacket());
+    await pool.run(host, (d) => listenOnFrequency(d, locked.raw));
 
     const code = await pollForCode(pool, host, Date.now() + RF_PACKET_TIMEOUT_MS);
     if (code) return { type: 'rf', code };
