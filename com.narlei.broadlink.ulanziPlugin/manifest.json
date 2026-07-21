@@ -10,7 +10,6 @@
   "CodePath": "app.js",
   "Type": "JavaScript",
   "PrivateAPI": true,
-  "SupportedInMultiActions": false,
   "UUID": "com.narlei.broadlink.plugin",
   "Actions": [
     {
