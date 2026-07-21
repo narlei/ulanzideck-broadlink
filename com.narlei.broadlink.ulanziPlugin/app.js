@@ -209,9 +209,9 @@ $UD.onSendToPlugin(async (msg) => {
       }
 
       try {
-        const result = await learnIr(pool, host, onProgress);
+        const { codeType, code } = await learnIr(pool, host, onProgress);
         log('learned ir code from', host);
-        reply({ type: 'learnResult', ok: true, ...result });
+        reply({ type: 'learnResult', ok: true, codeType, code });
       } catch (err) {
         reply({ type: 'learnResult', ok: false, error: err?.message || 'Learning failed' });
       } finally {
@@ -229,11 +229,11 @@ $UD.onSendToPlugin(async (msg) => {
       const { host, frequency } = pendingRf;
       clearPendingRf();
       try {
-        const result = await captureRfPacket(pool, host, frequency, (message) =>
+        const { codeType, code } = await captureRfPacket(pool, host, frequency, (message) =>
           reply({ type: 'learnProgress', message })
         );
         log('learned rf code from', host);
-        reply({ type: 'learnResult', ok: true, ...result });
+        reply({ type: 'learnResult', ok: true, codeType, code });
       } catch (err) {
         reply({ type: 'learnResult', ok: false, error: err?.message || 'Capture failed' });
       } finally {

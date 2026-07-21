@@ -40,7 +40,10 @@ export async function learnIr(pool, host, onProgress = () => {}) {
   onProgress('Point your remote at the Broadlink and press the button.');
 
   const code = await pollForCode(pool, host, Date.now() + IR_TIMEOUT_MS);
-  if (code) return { type: 'ir', code };
+  // Deliberately `codeType`, not `type`: these results get spread into the
+  // message sent to the panel, where `type` is the message name. A field
+  // called `type` here silently overwrites it and the panel drops the reply.
+  if (code) return { codeType: 'ir', code };
 
   await pool.run(host, (d) => d.cancelLearning()).catch(() => {});
   throw new Error('No IR signal captured. Get closer to the device and try again.');
@@ -138,7 +141,7 @@ export async function captureRfPacket(pool, host, frequencyRaw, onProgress = () 
     onProgress('Listening — now TAP the same button, a few times if needed.');
 
     const code = await pollForCode(pool, host, Date.now() + RF_PACKET_TIMEOUT_MS);
-    if (code) return { type: 'rf', code };
+    if (code) return { codeType: 'rf', code };
 
     throw new Error('No packet captured. Tap the button a few times, close to the device.');
   } catch (err) {

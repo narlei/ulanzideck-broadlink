@@ -271,10 +271,10 @@ $UD.onSendToPropertyInspector((msg) => {
         setStatus('fail', payload.error || 'Learning failed.');
         return;
       }
-      settings = { ...settings, code: payload.code, codeType: payload.type };
+      settings = { ...settings, code: payload.code, codeType: payload.codeType };
       renderCode();
       save();
-      setStatus('ok', `${payload.type.toUpperCase()} code learned. Hit Test to make sure it works.`);
+      setStatus('ok', `${String(payload.codeType || '').toUpperCase()} code learned. Hit Test to make sure it works.`);
       return;
     }
 
@@ -285,8 +285,15 @@ $UD.onSendToPropertyInspector((msg) => {
       return;
     }
 
-    default:
+    // A reply the panel does not recognise leaves the UI frozen mid-operation
+    // with no clue why — which is exactly how a mistyped message name hides.
+    // Say so instead of returning quietly.
+    default: {
+      console.warn('[broadlink] unrecognised message from plugin:', payload.type, payload);
+      busy(false);
+      setStatus('fail', `Unexpected reply "${payload.type}" from the plugin. Check the log.`);
       return;
+    }
   }
 });
 
