@@ -270,11 +270,11 @@ const banner2 = `<!doctype html><meta charset="utf-8"><style>
     </div>
     <div class="content">
       <div class="fl">Broadlink device</div>
-      <div class="ctl focus">RM4 Pro Quarto — 192.168.68.109</div>
+      <div class="ctl focus">RM4 Pro — 192.168.1.42</div>
       <div class="menu">
-        ${row('RM4 Pro Quarto — 192.168.68.109', '', true)}
-        ${row('BroadLink Sala — 192.168.68.108', 'IR only')}
-        ${row('RM mini 3 — 192.168.68.146', 'IR only')}
+        ${row('RM4 Pro — 192.168.1.42', '', true)}
+        ${row('RM4C mini — 192.168.1.51', 'IR only')}
+        ${row('RM mini 3 — 192.168.1.63', 'IR only')}
       </div>
       <div class="slot on">
         <div class="h"><span class="n">ON</span><span class="c">RF · 187 bytes</span></div>
