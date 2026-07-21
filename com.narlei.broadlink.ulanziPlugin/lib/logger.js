@@ -56,7 +56,11 @@ export function describeError(err) {
     '-2': 'logged out',
     '-3': 'device offline',
     '-4': 'command not supported',
-    '-5': 'storage error',
+    // Broadlink's own table calls -5 a storage error, but an RM4 Pro answers
+    // -5 on every learning poll right up until the moment it captures — it
+    // means "nothing yet" in practice. Labelling it "storage error" sends
+    // people hunting for a full device that isn't the problem.
+    '-5': 'nothing captured yet',
     '-6': 'structure abnormal',
     '-7': 'control key expired',
     '-8': 'send error',
