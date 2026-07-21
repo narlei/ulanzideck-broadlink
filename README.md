@@ -47,12 +47,13 @@ Worth doing either way: give the RM a **DHCP reservation** in your router. If it
 
 ### Learning RF codes
 
-RF capture is a two-stage handshake and each stage needs a different gesture:
+RF capture is a two-stage handshake and each stage needs the opposite gesture:
 
-1. Press **Learn RF** → **press and hold** the remote button while the RM sweeps for the frequency.
-2. When it says the frequency is locked → **release, then tap** the same button a few times.
+1. Press **Learn RF** → **press and hold** the remote button while the RM sweeps the band.
+2. It reports the frequency it locked onto. **Let go of the button**, then hit **"I let go — capture now"**.
+3. Now **tap** the same button, short presses, a few times.
 
-The panel tells you which one to do at each moment.
+That middle confirmation is not ceremony. The capture command has to reach the device *after* the transmitter stops holding the channel down — otherwise there is no packet boundary to find and the device waits forever. Only you know when you actually let go, so the panel asks instead of guessing.
 
 ## Troubleshooting
 

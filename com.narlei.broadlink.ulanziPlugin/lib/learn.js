@@ -70,13 +70,19 @@ function listenOnFrequency(device, raw) {
 }
 
 /**
- * RF learning is a two-stage handshake and the stages need opposite gestures
- * from the user: first a long hold so the RM can sweep the band and lock the
- * frequency, then short taps so it can capture one clean packet. Telling the
- * user which one to do at which moment is the whole difference between this
- * working on the first try and feeling broken.
+ * Stage one of RF learning: sweep the band while the user holds the button
+ * down, and return the frequency the device locked onto.
+ *
+ * The two stages are deliberately separate calls. They need opposite gestures —
+ * a long hold to find the frequency, then short taps to capture a packet — and
+ * the capture command has to arrive *after* the button is released. Driving
+ * both stages from one call means guessing how long a person takes to let go,
+ * and a fixed delay loses that race: the device gets told to listen while the
+ * transmitter is still holding the channel down, sees no packet boundary, and
+ * waits forever. python-broadlink's own CLI blocks on "press enter to
+ * continue" here for exactly this reason.
  */
-export async function learnRf(pool, host, onProgress = () => {}) {
+export async function startRfSweep(pool, host, onProgress = () => {}) {
   const info = pool.info(host);
   if (info && !info.rf) {
     throw new Error(`${info.model} is an IR-only device. RF learning needs an RM Pro.`);
@@ -92,37 +98,41 @@ export async function learnRf(pool, host, onProgress = () => {}) {
     onProgress('Scanning frequencies — press and HOLD the remote button.');
 
     const sweepDeadline = Date.now() + RF_SWEEP_TIMEOUT_MS;
-    let locked = null;
     while (Date.now() < sweepDeadline) {
       await sleep(POLL_INTERVAL_MS);
       try {
         const status = await pool.run(host, (d) => sweepStatus(d), { retry: false });
-        if (status.found) {
-          locked = status;
-          break;
-        }
+        if (status.found) return status;
       } catch {
         /* still sweeping */
       }
     }
-    if (!locked) throw new Error('No RF frequency found. Hold the button down and keep the remote close.');
+    throw new Error('No RF frequency found. Hold the button down and keep the remote close.');
+  } catch (err) {
+    await cancelRfSweep(pool, host);
+    throw err;
+  }
+}
 
-    onProgress(
-      locked.mhz
-        ? `Locked on ${locked.mhz.toFixed(2)} MHz. Release, then TAP the same button.`
-        : 'Frequency locked. Release, then TAP the same button.'
-    );
-    await sleep(1000);
-    await pool.run(host, (d) => listenOnFrequency(d, locked.raw));
+/** Stage two: capture one packet, now that the button has actually been let go. */
+export async function captureRfPacket(pool, host, frequencyRaw, onProgress = () => {}) {
+  try {
+    await pool.run(host, (d) => listenOnFrequency(d, frequencyRaw));
+    onProgress('Listening — now TAP the same button, a few times if needed.');
 
     const code = await pollForCode(pool, host, Date.now() + RF_PACKET_TIMEOUT_MS);
     if (code) return { type: 'rf', code };
 
-    throw new Error('Frequency found but no packet captured. Try tapping the button a few times.');
+    throw new Error('No packet captured. Tap the button a few times, close to the device.');
   } catch (err) {
-    await pool.run(host, (d) => d.cancelSweepFrequency?.()).catch(() => {});
+    await cancelRfSweep(pool, host);
     throw err;
   }
+}
+
+/** Leaves the device out of sweep mode; safe to call when it never entered it. */
+export async function cancelRfSweep(pool, host) {
+  await pool.run(host, (d) => d.cancelSweepFrequency?.()).catch(() => {});
 }
 
 /** Fires a stored code. IR and RF are the same call — the packet carries its own kind. */

@@ -1,7 +1,7 @@
 import UlanziApi from './plugin-common-node/index.js';
 import DevicePool from './lib/pool.js';
 import { discoverAll, helloUnicast, describe } from './lib/net.js';
-import { learnIr, learnRf, sendCode } from './lib/learn.js';
+import { learnIr, startRfSweep, captureRfPacket, cancelRfSweep, sendCode } from './lib/learn.js';
 
 const PLUGIN_UUID = 'com.narlei.broadlink.plugin';
 
@@ -12,6 +12,34 @@ const INSTANCES = new Map();
 // Learning holds the device in a special mode, so two buttons learning at once
 // would fight over it. One at a time, globally.
 let learnInFlight = false;
+
+// An RF sweep that found its frequency but is still waiting for the user to
+// confirm they let go of the button. Parked here between the two calls.
+let pendingRf = null;
+
+// If the panel is closed mid-sweep the confirmation never comes, and the device
+// would sit in sweep mode indefinitely. Abandon it rather than leave it stuck.
+const RF_CONFIRM_GRACE_MS = 90000;
+
+function clearPendingRf() {
+  if (!pendingRf) return;
+  clearTimeout(pendingRf.timer);
+  pendingRf = null;
+}
+
+function parkPendingRf(host, frequency) {
+  clearPendingRf();
+  pendingRf = {
+    host,
+    frequency,
+    timer: setTimeout(() => {
+      log('RF confirmation never arrived — leaving sweep mode');
+      cancelRfSweep(pool, host);
+      pendingRf = null;
+      learnInFlight = false;
+    }, RF_CONFIRM_GRACE_MS),
+  };
+}
 
 function log(...args) {
   console.log('[broadlink]', ...args);
@@ -143,15 +171,64 @@ $UD.onSendToPlugin(async (msg) => {
 
       learnInFlight = true;
       const onProgress = (message) => reply({ type: 'learnProgress', message });
+
+      if (mode === 'rf') {
+        // Stop after the sweep and hand control back to the panel. The capture
+        // command must not go out until the user confirms the button is
+        // released — see startRfSweep for why.
+        try {
+          const locked = await startRfSweep(pool, host, onProgress);
+          parkPendingRf(host, locked.raw);
+          reply({ type: 'rfLocked', ok: true, mhz: locked.mhz });
+        } catch (err) {
+          learnInFlight = false;
+          reply({ type: 'learnResult', ok: false, error: err?.message || 'RF sweep failed' });
+        }
+        return;
+      }
+
       try {
-        const result = mode === 'rf' ? await learnRf(pool, host, onProgress) : await learnIr(pool, host, onProgress);
-        log('learned', mode, 'code from', host);
+        const result = await learnIr(pool, host, onProgress);
+        log('learned ir code from', host);
         reply({ type: 'learnResult', ok: true, ...result });
       } catch (err) {
         reply({ type: 'learnResult', ok: false, error: err?.message || 'Learning failed' });
       } finally {
         learnInFlight = false;
       }
+      return;
+    }
+
+    case 'rfCapture': {
+      if (!pendingRf) {
+        learnInFlight = false;
+        reply({ type: 'learnResult', ok: false, error: 'The RF scan expired. Start again.' });
+        return;
+      }
+      const { host, frequency } = pendingRf;
+      clearPendingRf();
+      try {
+        const result = await captureRfPacket(pool, host, frequency, (message) =>
+          reply({ type: 'learnProgress', message })
+        );
+        log('learned rf code from', host);
+        reply({ type: 'learnResult', ok: true, ...result });
+      } catch (err) {
+        reply({ type: 'learnResult', ok: false, error: err?.message || 'Capture failed' });
+      } finally {
+        learnInFlight = false;
+      }
+      return;
+    }
+
+    case 'learnCancel': {
+      if (pendingRf) {
+        const { host } = pendingRf;
+        clearPendingRf();
+        await cancelRfSweep(pool, host);
+      }
+      learnInFlight = false;
+      reply({ type: 'learnCancelled' });
       return;
     }
 

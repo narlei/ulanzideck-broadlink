@@ -16,6 +16,9 @@ const learnIrBtn = document.getElementById('learnIrBtn');
 const learnRfBtn = document.getElementById('learnRfBtn');
 const testBtn = document.getElementById('testBtn');
 const statusEl = document.getElementById('status');
+const rfConfirmRow = document.getElementById('rfConfirmRow');
+const rfContinueBtn = document.getElementById('rfContinueBtn');
+const rfCancelBtn = document.getElementById('rfCancelBtn');
 
 // Devices the Scan found, plus any IP the user checked by hand. Keyed by IP so
 // a manual entry and a discovered one never show up twice.
@@ -242,8 +245,28 @@ $UD.onSendToPropertyInspector((msg) => {
       setStatus('busy', payload.message);
       return;
 
+    // The sweep found the frequency, but the capture command must not go out
+    // while the button is still held down. Wait for the user to say they let
+    // go rather than guessing at a delay.
+    case 'rfLocked': {
+      rfConfirmRow.style.display = 'flex';
+      setStatus(
+        'ok',
+        `Locked on ${payload.mhz ? payload.mhz.toFixed(2) + ' MHz' : 'a frequency'}.\n` +
+          'Let go of the button, then hit the button below.'
+      );
+      return;
+    }
+
+    case 'learnCancelled':
+      rfConfirmRow.style.display = 'none';
+      busy(false);
+      clearStatus();
+      return;
+
     case 'learnResult': {
       busy(false);
+      rfConfirmRow.style.display = 'none';
       if (!payload.ok) {
         setStatus('fail', payload.error || 'Learning failed.');
         return;
@@ -267,6 +290,15 @@ $UD.onSendToPropertyInspector((msg) => {
   }
 });
 
+rfContinueBtn.addEventListener('click', () => {
+  rfConfirmRow.style.display = 'none';
+  setStatus('busy', 'Listening for the packet…');
+  $UD.sendToPlugin({ type: 'rfCapture' });
+});
+rfCancelBtn.addEventListener('click', () => {
+  rfConfirmRow.style.display = 'none';
+  $UD.sendToPlugin({ type: 'learnCancel' });
+});
 scanBtn.addEventListener('click', scan);
 probeBtn.addEventListener('click', probe);
 learnIrBtn.addEventListener('click', () => learn('ir'));
