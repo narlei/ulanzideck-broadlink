@@ -87,6 +87,7 @@ function save() {
     ...settings,
     host,
     deviceName: info ? info.name || info.model : settings.deviceName || '',
+    deviceMac: info ? info.mac : settings.deviceMac || '',
     label: labelEl.value,
   };
   lastSentLabel = settings.label;
@@ -146,7 +147,7 @@ function test() {
   }
   busy(true, testBtn);
   setStatus('busy', 'Sending…');
-  $UD.sendToPlugin({ type: 'test', host, code: settings.code });
+  $UD.sendToPlugin({ type: 'test', host, code: settings.code, settings });
 }
 
 $UD.connect();

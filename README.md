@@ -53,7 +53,7 @@ Broadcast discovery cannot cross a subnet — this is how IP works, not a bug. I
 
 Find the IP in your router's client list, or in the Broadlink app under the device's properties.
 
-Worth doing either way: give the RM a **DHCP reservation** in your router. If its IP changes, the button stops working.
+Worth doing either way: give the RM a **DHCP reservation** in your router. The plugin can recover when the IP changes by finding the saved device name/MAC on the local network, but a reservation still makes every press faster and more predictable.
 
 ### Learning RF codes
 
@@ -71,7 +71,7 @@ That middle confirmation is not ceremony. The capture command has to reach the d
 
 **Scan finds nothing but the device is definitely online** — see *If Scan finds nothing* above. Also confirm the device isn't on a guest network, which is isolated by design on most routers.
 
-**Worked yesterday, dead today** — the RM's IP probably changed. Set a DHCP reservation.
+**Worked yesterday, slow first press today** — the RM's IP probably changed. The next key press or Test will look for the saved Broadlink by name/MAC and update the stored IP automatically. If recovery fails, run Scan again or set a DHCP reservation in your router.
 
 ## Development
 
