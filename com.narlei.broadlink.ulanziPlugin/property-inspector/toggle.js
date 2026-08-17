@@ -90,6 +90,7 @@ function save() {
     ...settings,
     host,
     deviceName: info ? info.name || info.model : settings.deviceName || '',
+    deviceMac: info ? info.mac : settings.deviceMac || '',
     label: labelEl.value,
     on: !!settings.on,
   };
@@ -129,7 +130,7 @@ function test(slot, trigger) {
   if (!code) return setStatus('fail', `Learn the ${slot.toUpperCase()} code first.`);
   busy(true, trigger);
   setStatus('busy', `Sending ${slot.toUpperCase()}…`);
-  $UD.sendToPlugin({ type: 'test', host, code });
+  $UD.sendToPlugin({ type: 'test', host, code, settings });
 }
 
 $UD.connect();

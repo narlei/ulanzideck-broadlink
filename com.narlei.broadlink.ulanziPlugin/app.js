@@ -24,6 +24,8 @@ let pendingRf = null;
 // If the panel is closed mid-sweep the confirmation never comes, and the device
 // would sit in sweep mode indefinitely. Abandon it rather than leave it stuck.
 const RF_CONFIRM_GRACE_MS = 90000;
+const REDISCOVER_TIMEOUT_MS = 6000;
+const HOST_IDENTITY_TIMEOUT_MS = 1800;
 
 function clearPendingRf() {
   if (!pendingRf) return;
@@ -97,6 +99,131 @@ function ensureInstance(context, settings, uuid) {
   return inst;
 }
 
+const normalizeName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const normalizeMac = (value) => String(value || '').trim().toLowerCase();
+
+function deviceLabel(settings) {
+  return settings.deviceName || settings.deviceMac || settings.host || 'saved Broadlink device';
+}
+
+function matchesSavedDevice(info, settings) {
+  if (!info || !settings) return false;
+
+  const savedMac = normalizeMac(settings.deviceMac);
+  if (savedMac) return normalizeMac(info.mac) === savedMac;
+
+  const savedName = normalizeName(settings.deviceName);
+  if (!savedName) return false;
+
+  return [info.name, info.name || info.model, info.model].some((candidate) => normalizeName(candidate) === savedName);
+}
+
+function hasSavedIdentity(settings) {
+  return !!(normalizeMac(settings.deviceMac) || normalizeName(settings.deviceName));
+}
+
+async function inspectHost(host, timeoutMs = HOST_IDENTITY_TIMEOUT_MS) {
+  const device = await helloUnicast(host, timeoutMs);
+  return device ? describe(device) : null;
+}
+
+async function rediscoverSavedDevice(settings) {
+  log(`recovery: discovering Broadlink devices to find ${deviceLabel(settings)}`);
+  const devices = (await discoverAll(REDISCOVER_TIMEOUT_MS)).map(describe);
+  const matches = devices.filter((device) => matchesSavedDevice(device, settings));
+
+  if (!matches.length) {
+    throw new Error(`Could not find ${deviceLabel(settings)} on this network.`);
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `More than one Broadlink matches "${deviceLabel(settings)}" (${matches.map((d) => d.host).join(', ')}). ` +
+        'Rename one of them or pick the IP again.'
+    );
+  }
+
+  return matches[0];
+}
+
+function updateInstanceDevice(inst, device) {
+  inst.settings = {
+    ...(inst.settings || {}),
+    host: device.host,
+    deviceName: device.name || device.model,
+    deviceMac: device.mac,
+  };
+  $UD.setSettings(inst.settings, inst.context);
+  renderInstance(inst);
+}
+
+async function resolveInstanceHost(inst) {
+  const settings = inst.settings || {};
+  const host = String(settings.host || '').trim();
+  if (!host || !hasSavedIdentity(settings)) return host;
+
+  const cached = pool.info(host);
+  if (cached && matchesSavedDevice(cached, settings)) return host;
+
+  try {
+    const current = await inspectHost(host);
+    if (current && matchesSavedDevice(current, settings)) {
+      if (!settings.deviceMac && current.mac) {
+        updateInstanceDevice(inst, current);
+      }
+      return host;
+    }
+    if (current) {
+      log(
+        `recovery: ${host} is ${current.name || current.model} (${current.mac}), ` +
+          `not ${deviceLabel(settings)}`
+      );
+      pool.forget(host);
+    }
+  } catch (err) {
+    log(`recovery: saved host ${host} did not verify — ${describeError(err)}`);
+    pool.forget(host);
+  }
+
+  const found = await rediscoverSavedDevice(settings);
+  if (found.locked) {
+    throw new Error(`${found.model} at ${found.host} is locked to the cloud. Turn "Lock device" off in the Broadlink app.`);
+  }
+
+  if (found.host !== host) {
+    log(`recovery: ${deviceLabel(settings)} moved from ${host} to ${found.host}`);
+    updateInstanceDevice(inst, found);
+    $UD.toast(`Broadlink IP updated: ${found.host}`);
+  }
+
+  return found.host;
+}
+
+async function sendCodeForInstance(inst, code) {
+  const firstHost = await resolveInstanceHost(inst);
+  try {
+    await sendCode(pool, firstHost, code);
+    return firstHost;
+  } catch (err) {
+    const settings = inst.settings || {};
+    if (!firstHost || !hasSavedIdentity(settings)) throw err;
+
+    log(`recovery: send via ${firstHost} failed — ${describeError(err)}`);
+    pool.forget(firstHost);
+
+    const found = await rediscoverSavedDevice(settings);
+    if (found.locked) {
+      throw new Error(`${found.model} at ${found.host} is locked to the cloud. Turn "Lock device" off in the Broadlink app.`);
+    }
+    if (found.host === firstHost) throw err;
+
+    log(`recovery: retrying ${deviceLabel(settings)} at ${found.host}`);
+    updateInstanceDevice(inst, found);
+    await sendCode(pool, found.host, code);
+    $UD.toast(`Broadlink IP updated: ${found.host}`);
+    return found.host;
+  }
+}
+
 // Stamped at startup so a log file can be matched against the build that
 // produced it — a stale plugin process silently serving old code is otherwise
 // indistinguishable from a fix that did not work.
@@ -158,16 +285,17 @@ $UD.onRun(async (msg) => {
   }
 
   try {
-    await sendCode(pool, s.host, code);
+    const host = await sendCodeForInstance(inst, code);
     if (toggle) {
       // Only flip once the send actually landed, so a failed press does not
       // leave the key claiming a state the device never reached.
-      inst.settings = { ...s, on: !s.on };
+      inst.settings = { ...inst.settings, on: !s.on };
+      $UD.setSettings(inst.settings, msg.context);
       $UD.sendParamFromPlugin(inst.settings, msg.context);
       renderInstance(inst);
-      log(`toggled ${s.label || 'button'} -> ${inst.settings.on ? 'ON' : 'OFF'} via ${s.host}`);
+      log(`toggled ${s.label || 'button'} -> ${inst.settings.on ? 'ON' : 'OFF'} via ${host}`);
     } else {
-      log('sent', s.label || code.slice(0, 12), '->', s.host);
+      log('sent', s.label || code.slice(0, 12), '->', host);
     }
   } catch (err) {
     const reason = err?.message || 'unknown error';
@@ -300,7 +428,10 @@ $UD.onSendToPlugin(async (msg) => {
     case 'test': {
       const host = (payload.host || '').trim();
       try {
-        await sendCode(pool, host, payload.code);
+        const testSettings = { ...(payload.settings || {}), host };
+        const inst = INSTANCES.get(msg.context) || ensureInstance(msg.context, testSettings, msg.uuid);
+        inst.settings = { ...(inst.settings || {}), ...testSettings };
+        await sendCodeForInstance(inst, payload.code);
         reply({ type: 'testResult', ok: true });
       } catch (err) {
         reply({ type: 'testResult', ok: false, error: err?.message || 'Send failed' });
