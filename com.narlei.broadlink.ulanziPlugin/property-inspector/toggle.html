@@ -87,6 +87,13 @@
           <button type="button" data-slot="on" data-mode="rf">Learn RF</button>
           <button type="button" data-slot="on" data-test="1">Test</button>
         </div>
+        <div class="slot-live">
+          <div class="slot-live-msg"></div>
+          <div class="slot-live-btns">
+            <button type="button" class="primary" data-live="continue">I let go — capture</button>
+            <button type="button" data-live="cancel">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <div class="slot off">
@@ -99,11 +106,13 @@
           <button type="button" data-slot="off" data-mode="rf">Learn RF</button>
           <button type="button" data-slot="off" data-test="1">Test</button>
         </div>
-      </div>
-
-      <div class="bl-actions" id="rfConfirmRow" style="display:none">
-        <button type="button" id="rfContinueBtn">I let go — capture now</button>
-        <button type="button" id="rfCancelBtn">Cancel</button>
+        <div class="slot-live">
+          <div class="slot-live-msg"></div>
+          <div class="slot-live-btns">
+            <button type="button" class="primary" data-live="continue">I let go — capture</button>
+            <button type="button" data-live="cancel">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <div class="bl-status" id="status"></div>

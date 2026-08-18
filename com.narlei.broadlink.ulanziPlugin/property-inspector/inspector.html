@@ -43,31 +43,20 @@
     .bl-status.fail { background: rgba(242,85,85,0.12);  border: 1px solid rgba(242,85,85,0.4); }
     .bl-status.busy { background: rgba(139,92,246,0.14); border: 1px solid rgba(139,92,246,0.45); }
 
-    .bl-code {
-      margin: 0 10px 12px;
-      padding: 7px 9px;
-      border-radius: 6px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.12);
+    /* Same shape as the toggle panel's slots, so the learning takeover in
+       pi.css applies here unchanged. */
+    .slot {
+      margin: 0 10px 10px; padding: 9px 10px; border-radius: 8px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,138,61,0.45);
+    }
+    .slot-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+    .slot-name { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #ffb067; }
+    .slot-code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 11px;
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
+      font-size: 10px; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .bl-code .kind {
-      font-family: inherit;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(45,212,191,0.2);
-      flex-shrink: 0;
-    }
-    .bl-code .hex { opacity: 0.65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bl-code.empty .kind { background: rgba(255,255,255,0.12); }
+    .slot-btns { display: flex; gap: 5px; }
+    .slot-btns button { flex: 1; }
 
     .bl-hint { padding: 0 12px 10px; font-size: 11px; opacity: 0.6; line-height: 1.5; }
     .bl-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 0 10px 12px; }
@@ -100,20 +89,23 @@
         <input type="text" id="label" placeholder="Bedroom light" spellcheck="false" autocomplete="off">
       </div>
 
-      <div class="bl-code empty" id="codeBox">
-        <span class="kind" id="codeKind">empty</span>
-        <span class="hex" id="codeHex">no code learned yet</span>
-      </div>
-
-      <div class="bl-actions">
-        <button type="button" id="learnIrBtn">Learn IR</button>
-        <button type="button" id="learnRfBtn">Learn RF</button>
-        <button type="button" id="testBtn">Test</button>
-      </div>
-
-      <div class="bl-actions" id="rfConfirmRow" style="display:none">
-        <button type="button" id="rfContinueBtn">I let go — capture now</button>
-        <button type="button" id="rfCancelBtn">Cancel</button>
+      <div class="slot" id="codeSlot">
+        <div class="slot-head">
+          <span class="slot-name">Code</span>
+          <span class="slot-code" id="codeText">not learned</span>
+        </div>
+        <div class="slot-btns">
+          <button type="button" id="learnIrBtn">Learn IR</button>
+          <button type="button" id="learnRfBtn">Learn RF</button>
+          <button type="button" id="testBtn">Test</button>
+        </div>
+        <div class="slot-live">
+          <div class="slot-live-msg"></div>
+          <div class="slot-live-btns">
+            <button type="button" class="primary" data-live="continue">I let go — capture</button>
+            <button type="button" data-live="cancel">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <div class="bl-status" id="status"></div>

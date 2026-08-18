@@ -110,7 +110,7 @@ export async function startRfSweep(pool, host, onProgress = () => {}) {
       return d.sweepFrequency();
     });
     log(`RF sweep: started on ${host}`);
-    onProgress('Scanning frequencies — press and HOLD the remote button.');
+    onProgress('Press and HOLD the button on your remote.');
 
     const sweepDeadline = Date.now() + RF_SWEEP_TIMEOUT_MS;
     while (Date.now() < sweepDeadline) {

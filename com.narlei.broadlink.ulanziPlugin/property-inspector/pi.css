@@ -174,3 +174,62 @@ input[type='text']:focus {
   border-color: rgba(0, 255, 230, 0.55) !important;
   background: rgba(255, 255, 255, 0.09) !important;
 }
+
+/* --- learning takeover -----------------------------------------------------
+   The panel gets about 180px of visible height inside Ulanzi Studio, so a
+   confirmation button placed after the last slot is simply not on screen when
+   the user is looking at the slot they just clicked. While a learn is running,
+   the slot doing the learning swaps its own button row for the instruction and
+   the one control that matters, and everything else dims out of the way. The
+   step the user has to take is then always where they are already looking. */
+.slot-live {
+  display: none;
+}
+
+.slot.learning {
+  border-color: rgba(139, 92, 246, 0.65) !important;
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.slot.learning .slot-btns {
+  display: none;
+}
+
+.slot.learning .slot-live {
+  display: block;
+}
+
+.slot-live-msg {
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 7px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.slot-live-btns {
+  display: flex;
+  gap: 5px;
+}
+
+.slot-live-btns button {
+  flex: 1;
+}
+
+/* The capture button only exists for the couple of seconds between the sweep
+   locking on and the packet being caught. It has to read as *the* thing to
+   press, not as one more outlined button among three. */
+.slot-live-btns button.primary {
+  border-color: var(--uspi-theme);
+  color: var(--uspi-theme);
+  animation: pi-pulse 1.15s ease-in-out infinite;
+}
+
+/* Dim everything that is not the slot being learned. On a viewport this short
+   the panel can only really show one thing at a time, so it should show the
+   one thing that is happening. */
+form.learning > *:not(.slot.learning) {
+  opacity: 0.3;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}

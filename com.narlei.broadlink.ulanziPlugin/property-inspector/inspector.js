@@ -16,16 +16,15 @@ const scanBtn = document.getElementById('scanBtn');
 const manualHost = document.getElementById('manualHost');
 const probeBtn = document.getElementById('probeBtn');
 const labelEl = document.getElementById('label');
-const codeBox = document.getElementById('codeBox');
-const codeKind = document.getElementById('codeKind');
-const codeHex = document.getElementById('codeHex');
+const codeText = document.getElementById('codeText');
 const learnIrBtn = document.getElementById('learnIrBtn');
 const learnRfBtn = document.getElementById('learnRfBtn');
 const testBtn = document.getElementById('testBtn');
 const statusEl = document.getElementById('status');
-const rfConfirmRow = document.getElementById('rfConfirmRow');
-const rfContinueBtn = document.getElementById('rfContinueBtn');
-const rfCancelBtn = document.getElementById('rfCancelBtn');
+const form = document.getElementById('property-inspector');
+const slotEl = document.getElementById('codeSlot');
+const liveMsg = slotEl.querySelector('.slot-live-msg');
+const liveContinue = slotEl.querySelector('[data-live="continue"]');
 
 // Devices the Scan found, plus any IP the user checked by hand. Keyed by IP so
 // a manual entry and a discovered one never show up twice.
@@ -34,6 +33,10 @@ const knownDevices = new Map();
 function setStatus(kind, text) {
   statusEl.textContent = text;
   statusEl.className = `bl-status show ${kind}`;
+  // The visible area is about 180px tall. A message the user has to go looking
+  // for is a message they will not read — `nearest` scrolls only when it is
+  // actually off screen, so a status that is already visible stays put.
+  statusEl.scrollIntoView({ block: 'nearest' });
 }
 
 function clearStatus() {
@@ -47,15 +50,38 @@ function currentHost() {
 
 function renderCode() {
   const { code, codeType } = settings;
-  if (code) {
-    codeBox.classList.remove('empty');
-    codeKind.textContent = codeType === 'rf' ? 'RF' : 'IR';
-    codeHex.textContent = `${code.slice(0, 28)}… (${code.length / 2} bytes)`;
-  } else {
-    codeBox.classList.add('empty');
-    codeKind.textContent = 'empty';
-    codeHex.textContent = 'no code learned yet';
-  }
+  codeText.textContent = code
+    ? `${String(codeType || '').toUpperCase()} · ${code.length / 2} bytes`
+    : 'not learned';
+}
+
+// The panel gets roughly 180px of visible height inside Studio, so anything
+// appended below the slot — a status line, a confirmation button — is off
+// screen at the moment it matters. While a learn runs, the slot swaps its own
+// button row for the instruction and the single control the step needs, and
+// everything else dims. The next thing to do is then always under the button
+// the user just pressed.
+function setLive(message, showContinue = false) {
+  liveMsg.textContent = message;
+  liveContinue.style.display = showContinue ? '' : 'none';
+}
+
+function enterLive(message) {
+  form.classList.add('learning');
+  slotEl.classList.add('learning');
+  setLive(message);
+  // The button that was just clicked is inside the row we are about to hide.
+  // Dropping focus first stops the browser from doing its own scroll correction
+  // for the vanished element, which otherwise cancels ours mid-flight.
+  document.activeElement?.blur();
+  // Deliberately not smooth: the row swap changes the slot's height, and an
+  // animated scroll racing that relayout lands in the wrong place.
+  slotEl.scrollIntoView({ block: 'center' });
+}
+
+function exitLive() {
+  form.classList.remove('learning');
+  slotEl.classList.remove('learning');
 }
 
 function renderDevices() {
@@ -131,7 +157,8 @@ function learn(mode) {
     return;
   }
   busy(true, mode === 'rf' ? learnRfBtn : learnIrBtn);
-  setStatus('busy', mode === 'rf' ? 'Starting RF scan…' : 'Putting the device in learning mode…');
+  clearStatus();
+  enterLive(mode === 'rf' ? 'Starting RF scan…' : 'Putting the device in learning mode…');
   $UD.sendToPlugin({ type: 'learn', mode, host });
 }
 
@@ -234,31 +261,31 @@ $UD.onSendToPropertyInspector((msg) => {
     }
 
     case 'learnProgress':
-      setStatus('busy', payload.message);
+      if (slotEl.classList.contains('learning')) setLive(payload.message);
+      else setStatus('busy', payload.message);
       return;
 
     // The sweep found the frequency, but the capture command must not go out
     // while the button is still held down. Wait for the user to say they let
     // go rather than guessing at a delay.
     case 'rfLocked': {
-      rfConfirmRow.style.display = 'flex';
-      setStatus(
-        'ok',
-        `Locked on ${payload.mhz ? payload.mhz.toFixed(2) + ' MHz' : 'a frequency'}.\n` +
-          'Let go of the button, then hit the button below.'
+      setLive(
+        `Got it — ${payload.mhz ? payload.mhz.toFixed(2) + ' MHz' : 'frequency found'}.\n` +
+          'Let go of the remote button, then press Capture.',
+        true
       );
       return;
     }
 
     case 'learnCancelled':
-      rfConfirmRow.style.display = 'none';
+      exitLive();
       busy(false);
       clearStatus();
       return;
 
     case 'learnResult': {
       busy(false);
-      rfConfirmRow.style.display = 'none';
+      exitLive();
       if (!payload.ok) {
         setStatus('fail', payload.error || 'Learning failed.');
         return;
@@ -289,14 +316,17 @@ $UD.onSendToPropertyInspector((msg) => {
   }
 });
 
-rfContinueBtn.addEventListener('click', () => {
-  rfConfirmRow.style.display = 'none';
-  setStatus('busy', 'Listening for the packet…');
-  $UD.sendToPlugin({ type: 'rfCapture' });
-});
-rfCancelBtn.addEventListener('click', () => {
-  rfConfirmRow.style.display = 'none';
-  $UD.sendToPlugin({ type: 'learnCancel' });
+form.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-live]');
+  if (!btn) return;
+  if (btn.dataset.live === 'continue') {
+    setLive('Listening — now TAP the same button.');
+    $UD.sendToPlugin({ type: 'rfCapture' });
+  } else {
+    exitLive();
+    busy(false);
+    $UD.sendToPlugin({ type: 'learnCancel' });
+  }
 });
 scanBtn.addEventListener('click', scan);
 probeBtn.addEventListener('click', probe);

@@ -22,10 +22,9 @@ const labelEl = document.getElementById('label');
 const codeOnText = document.getElementById('codeOnText');
 const codeOffText = document.getElementById('codeOffText');
 const statusEl = document.getElementById('status');
-const rfConfirmRow = document.getElementById('rfConfirmRow');
-const rfContinueBtn = document.getElementById('rfContinueBtn');
-const rfCancelBtn = document.getElementById('rfCancelBtn');
 const resetStateBtn = document.getElementById('resetStateBtn');
+const form = document.getElementById('property-inspector');
+const slotEls = { on: document.querySelector('.slot.on'), off: document.querySelector('.slot.off') };
 
 const slotButtons = [...document.querySelectorAll('.slot-btns button')];
 const knownDevices = new Map();
@@ -36,6 +35,10 @@ const typeField = (slot) => (slot === 'on' ? 'codeOnType' : 'codeOffType');
 function setStatus(kind, text) {
   statusEl.textContent = text;
   statusEl.className = `bl-status show ${kind}`;
+  // The visible area is about 180px tall. A message the user has to go looking
+  // for is a message they will not read — `nearest` scrolls only when it is
+  // actually off screen, so a status that is already visible stays put.
+  statusEl.scrollIntoView({ block: 'nearest' });
 }
 
 function clearStatus() {
@@ -100,6 +103,44 @@ function save() {
 
 const debouncedSave = Utils.debounce(save, 600);
 
+// The panel gets roughly 180px of visible height inside Studio, so anything
+// appended below the slots — a status line, a confirmation button — is off
+// screen at the moment it matters. While a learn runs, the slot doing the
+// learning swaps its own button row for the instruction and the single control
+// the step needs, and everything else dims. The next thing to do is then always
+// under the button the user just pressed.
+function liveEl(slot, sel) {
+  return slotEls[slot] ? slotEls[slot].querySelector(sel) : null;
+}
+
+function setLive(slot, message, showContinue = false) {
+  const msg = liveEl(slot, '.slot-live-msg');
+  const cont = liveEl(slot, '[data-live="continue"]');
+  if (!msg || !cont) return;
+  msg.textContent = message;
+  cont.style.display = showContinue ? '' : 'none';
+}
+
+function enterLive(slot, message) {
+  form.classList.add('learning');
+  for (const [name, el] of Object.entries(slotEls)) el.classList.toggle('learning', name === slot);
+  setLive(slot, message);
+  // The button that was just clicked is inside the row we are about to hide.
+  // Dropping focus first stops the browser from doing its own scroll correction
+  // for the vanished element, which otherwise cancels ours mid-flight.
+  document.activeElement?.blur();
+  // A slot near the bottom of a scrolled panel would otherwise take over out of
+  // sight, which is the exact failure this whole arrangement exists to avoid.
+  // Deliberately not smooth: the row swap changes the slot's height, and an
+  // animated scroll racing that relayout lands in the wrong place.
+  slotEls[slot]?.scrollIntoView({ block: 'center' });
+}
+
+function exitLive() {
+  form.classList.remove('learning');
+  for (const el of Object.values(slotEls)) el.classList.remove('learning');
+}
+
 // `trigger` is the button the user actually pressed. It stays lit and pulsing
 // while everything else greys out, so the panel answers "did my click land?"
 // at the control itself instead of only in the status line below.
@@ -119,7 +160,8 @@ function learn(slot, mode, trigger) {
   }
   pendingSlot = slot;
   busy(true, trigger);
-  setStatus('busy', mode === 'rf' ? `Starting RF scan for ${slot.toUpperCase()}…` : `Learning the ${slot.toUpperCase()} code…`);
+  clearStatus();
+  enterLive(slot, mode === 'rf' ? 'Starting RF scan…' : 'Putting the device in learning mode…');
   $UD.sendToPlugin({ type: 'learn', mode, host });
 }
 
@@ -204,20 +246,22 @@ $UD.onSendToPropertyInspector((msg) => {
     }
 
     case 'learnProgress':
-      setStatus('busy', payload.message);
+      if (pendingSlot) setLive(pendingSlot, payload.message);
+      else setStatus('busy', payload.message);
       return;
 
     case 'rfLocked':
-      rfConfirmRow.style.display = 'flex';
-      setStatus(
-        'ok',
-        `Locked on ${payload.mhz ? payload.mhz.toFixed(2) + ' MHz' : 'a frequency'}.\n` +
-          'Let go of the button, then hit the button below.'
+      if (!pendingSlot) return;
+      setLive(
+        pendingSlot,
+        `Got it — ${payload.mhz ? payload.mhz.toFixed(2) + ' MHz' : 'frequency found'}.\n` +
+          'Let go of the remote button, then press Capture.',
+        true
       );
       return;
 
     case 'learnCancelled':
-      rfConfirmRow.style.display = 'none';
+      exitLive();
       pendingSlot = null;
       busy(false);
       clearStatus();
@@ -225,7 +269,7 @@ $UD.onSendToPropertyInspector((msg) => {
 
     case 'learnResult': {
       busy(false);
-      rfConfirmRow.style.display = 'none';
+      exitLive();
       const slot = pendingSlot;
       pendingSlot = null;
       if (!payload.ok) return setStatus('fail', payload.error || 'Learning failed.');
@@ -257,14 +301,20 @@ for (const b of slotButtons) {
   });
 }
 
-rfContinueBtn.addEventListener('click', () => {
-  rfConfirmRow.style.display = 'none';
-  setStatus('busy', 'Listening for the packet…');
-  $UD.sendToPlugin({ type: 'rfCapture' });
-});
-rfCancelBtn.addEventListener('click', () => {
-  rfConfirmRow.style.display = 'none';
-  $UD.sendToPlugin({ type: 'learnCancel' });
+// Both slots carry their own live strip, so the handler is delegated rather
+// than bound to one pair of ids.
+form.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-live]');
+  if (!btn) return;
+  if (btn.dataset.live === 'continue') {
+    setLive(pendingSlot, 'Listening — now TAP the same button.');
+    $UD.sendToPlugin({ type: 'rfCapture' });
+  } else {
+    exitLive();
+    pendingSlot = null;
+    busy(false);
+    $UD.sendToPlugin({ type: 'learnCancel' });
+  }
 });
 
 resetStateBtn.addEventListener('click', () => {
