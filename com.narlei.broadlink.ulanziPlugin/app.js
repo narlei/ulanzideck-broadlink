@@ -3,6 +3,7 @@ import DevicePool from './lib/pool.js';
 import { discoverAll, helloUnicast, describe } from './lib/net.js';
 import { learnIr, startRfSweep, captureRfPacket, cancelRfSweep, sendCode } from './lib/learn.js';
 import { log, describeError, LOG_PATH } from './lib/logger.js';
+import { sendingFrame } from './lib/icon.js';
 import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -84,6 +85,45 @@ function renderInstance(inst) {
 
   const ready = !!s.host && !!s.code;
   $UD.setStateIcon(inst.context, 0, ready ? s.label || '' : 'setup');
+}
+
+// A device whose session is already open answers in tens of milliseconds —
+// quicker than a single screen refresh. Painted and cleared that fast the
+// indicator is invisible and the press still looks ignored, so it is held for a
+// floor of BUSY_MIN_MS even once the send has already landed.
+// Long enough for one full emit-and-rest cycle of the artwork (8 frames), so a
+// fast send never cuts the animation off mid-pulse.
+const BUSY_MIN_MS = 700;
+const BUSY_TICK_MS = 80;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Pushed artwork replaces what is drawn on the key but not what the key has
+// configured, so renderInstance — which addresses artwork by state index —
+// puts the user's own image back when the send finishes.
+function paintBusy(inst) {
+  if (!inst.active) return;
+  $UD.setBaseDataIcon(inst.context, sendingFrame(inst.busyFrame));
+  inst.busyFrame += 1;
+}
+
+function startBusy(inst) {
+  inst.busy = true;
+  inst.busyFrame = 0;
+  inst.busySince = Date.now();
+  paintBusy(inst);
+  // Repainting on a timer also heals the indicator if an unrelated settings
+  // event repaints the key underneath us mid-send.
+  inst.busyTimer = setInterval(() => paintBusy(inst), BUSY_TICK_MS);
+}
+
+async function stopBusy(inst) {
+  const held = Date.now() - inst.busySince;
+  if (held < BUSY_MIN_MS) await sleep(BUSY_MIN_MS - held);
+  clearInterval(inst.busyTimer);
+  inst.busyTimer = null;
+  inst.busy = false;
+  renderInstance(inst);
 }
 
 function ensureInstance(context, settings, uuid) {
@@ -284,6 +324,14 @@ $UD.onRun(async (msg) => {
     return;
   }
 
+  // The send is a network round trip (plus possible device recovery), so a
+  // second press before the first lands would race it — for a toggle that
+  // could flip the state twice off the same stale `s.on`. Ignore repeats
+  // instead of queuing them.
+  if (inst.busy) return;
+
+  startBusy(inst);
+
   try {
     const host = await sendCodeForInstance(inst, code);
     if (toggle) {
@@ -292,7 +340,6 @@ $UD.onRun(async (msg) => {
       inst.settings = { ...inst.settings, on: !s.on };
       $UD.setSettings(inst.settings, msg.context);
       $UD.sendParamFromPlugin(inst.settings, msg.context);
-      renderInstance(inst);
       log(`toggled ${s.label || 'button'} -> ${inst.settings.on ? 'ON' : 'OFF'} via ${host}`);
     } else {
       log('sent', s.label || code.slice(0, 12), '->', host);
@@ -302,6 +349,8 @@ $UD.onRun(async (msg) => {
     log('send failed:', reason);
     $UD.toast(`Broadlink: ${reason}`.slice(0, 140));
     $UD.showAlert(msg.context);
+  } finally {
+    await stopBusy(inst);
   }
 });
 

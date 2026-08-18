@@ -1,6 +1,6 @@
 {
   "Name": "Broadlink IR/RF",
-  "Version": "1.1.0",
+  "Version": "1.2.0",
   "Author": "Narlei Moreira",
   "Description": "Fire any IR or RF command from your Deck through a Broadlink RM. Learn codes straight from your original remote — no cloud, no account.",
   "Icon": "resources/icon.svg",

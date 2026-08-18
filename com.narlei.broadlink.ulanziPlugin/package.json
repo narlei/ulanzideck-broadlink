@@ -1,6 +1,6 @@
 {
   "name": "ulanzideck-broadlink",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Ulanzi Deck plugin that sends learned IR/RF codes through a Broadlink RM device over the local network.",
   "author": "Narlei Moreira",
   "license": "MIT",
